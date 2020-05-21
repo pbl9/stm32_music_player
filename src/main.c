@@ -16,47 +16,15 @@
 FATFS SDFatFs;  /* File system object for SD card logical drive */
 FIL MyFile;     /* File object */
 char SDPath[4]; /* SD card logical drive path */
-
-extern TIM_HandleTypeDef tim;
-extern DAC_HandleTypeDef hdac1;
-//extern DMA_HandleTypeDef hdma_dac_ch1;
-
-
-typedef enum {
-  IDLE = 0,
-  INIT,
-  FIND,
-  PLAYING,
-  SD_UNPLUGGED,
-}FS_FileOperationsTypeDef;
-
-FS_FileOperationsTypeDef Appli_state = IDLE;
 static uint8_t isInitialized = 0;
 //static uint8_t isCreated = 0;
 uint8_t workBuffer[_MAX_SS];
-uint16_t samples_buffer[SAMPLES_BUFF_SIZE];
-uint16_t buff_pointer=0;
 volatile uint8_t half_xfer_complete=0;
 volatile uint8_t xfer_complete=0;
 
-
 static void FS_FileOperations(void);
 static void SD_Initialize(void);
-//uint16_t getSamplesFromBytes(uint8_t* bytes);
 FILINFO find_wav_file(DIR* direc);
-
-
-void HAL_DAC_ConvHalfCpltCallbackCh1(DAC_HandleTypeDef* hdac)
-{
-	half_xfer_complete=1;
-	xfer_complete=0;
-}
-void HAL_DAC_ConvCpltCallbackCh1 (DAC_HandleTypeDef *hdac)
-{
-	half_xfer_complete=0;
-	xfer_complete=1;
-}
-
 
 int main(void)
 {
@@ -64,12 +32,13 @@ int main(void)
     DIR dj;
     FILINFO fno;
     FIL fil;
+    uint16_t samples_buffer[SAMPLES_BUFF_SIZE];
     uint8_t temp_buff[2*SAMPLES_BUFF_SIZE]={0};
     uint32_t j=0;
+    uint16_t buff_pointer=0;
     char buf[260];
     struct Header header;
     const char* error_msg="f_read error";
-
 	HAL_Init();
 	SystemClock_Config();
 	GPIO_Conf();
@@ -80,15 +49,13 @@ int main(void)
 	BSP_LED_Init(LED2);
 
 	  /* 1- Link the micro SD disk I/O driver */
-	  if(FATFS_LinkDriver(&SD_Driver, SDPath) == 0)
-	  {
+	application_state_typedef application_state = IDLE;
+	  if(FATFS_LinkDriver(&SD_Driver, SDPath) == 0){
 	    /*##-2- Init the SD Card #################################################*/
-
 	    SD_Initialize();
-
 	    //if(BSP_SD_IsDetected())
 	    //{
-	      Appli_state = INIT;
+	      application_state = INIT;
 	   // }
 	  }
 	  else
@@ -96,61 +63,56 @@ int main(void)
 	    Error_Handler();
 	    while(1) {};
 	  }
-	  /* Infinite loop */
-	  while (1)
-	  {
+	  while (1){
 	    /* Mass Storage Application State Machine */
-	    switch(Appli_state)
-	    {
+	    switch(application_state){
 	    case INIT:
-	      SD_Initialize();
-	      FS_FileOperations();
-          fr = f_findfirst(&dj, &fno, "", "*.wav");
-          if(fr==FR_OK && fno.fname[0])
-          {
-        	  sprintf(buf,"%s\n" ,fno.fname);
-        	  send_message(buf,strlen(buf));
-        	  Appli_state=PLAYING;
-          }
-          else
-          {
-        	  Appli_state=IDLE;
-          }
-	      break;
+	    	SD_Initialize();
+	    	FS_FileOperations();
+	    	fr = f_findfirst(&dj, &fno, "", "*.wav");
+	    	if(fr==FR_OK && fno.fname[0]){
+	    		sprintf(buf,"%s\n" ,fno.fname);
+	    		send_message(buf,strlen(buf));
+	    		application_state=PLAYING;
+	    	}
+	    	else{
+	    		application_state=IDLE;
+	    	}
+	    	break;
 	    case FIND:
-          fr = f_findnext(&dj,&fno);
-          if(fr==FR_OK && fno.fname[0])
-          {
+	    	fr = f_findnext(&dj,&fno);
+	    	if(fr==FR_OK && fno.fname[0]){
         	  sprintf(buf,"%s\n" ,fno.fname);
         	  send_message(buf,strlen(buf));
-        	  Appli_state=PLAYING;
+        	  application_state=PLAYING;
           }
-          else
-          {
-        	  Appli_state=IDLE;
+          else{
+        	  application_state=IDLE;
           }
           break;
 	    case PLAYING:
-          fr=f_open(&fil,fno.fname,FA_READ);
-          if(fr!=FR_OK)
+          if( (fr=f_open(&fil,fno.fname,FA_READ)) != FR_OK){
         	  Error_Handler();
-
-          fr=f_read(&fil,temp_buff,44,NULL);
-          read_frame(temp_buff,&header);
-          sprintf(buf,"Read data about file:\n\rchannels:%d\n\rsample rate:%d\n\rbits_per_sample:%d\n\rdata size:%d" ,(int)header.channels,(int)header.sample_rate,(int)header.bits_per_sample,(int)header.data_size);
+          }
+          if( (fr=f_read(&fil,temp_buff,44,NULL))!= FR_OK ){
+        	  Error_Handler();
+          }
+          read_wav_frame(temp_buff,&header);
+          sprintf(buf,"Data about file:\n\rchannels:%d\n\rsample rate:%d\n\rbits_per_sample:%d\n\rdata size:%d" ,(int)header.channels,(int)header.sample_rate,(int)header.bits_per_sample,(int)header.data_size);
           send_message(buf,strlen(buf));
 
           fr=f_lseek(&fil,44);
           fr=f_read(&fil,temp_buff,2*SAMPLES_BUFF_SIZE,NULL);
-          for(j=0;j<SAMPLES_BUFF_SIZE;j++)
-          {
+          for(j=0;j<SAMPLES_BUFF_SIZE;j++){
         	  samples_buffer[j]=getSamplesFromBytes(temp_buff+2*j);
           }
           buff_pointer=0;
-
+          extern TIM_HandleTypeDef tim;
           HAL_TIM_Base_Start(&tim);
+          extern DAC_HandleTypeDef hdac1;
           HAL_DAC_Start_DMA(&hdac1,DAC_CHANNEL_1,(uint32_t*)samples_buffer,SAMPLES_BUFF_SIZE,DAC_ALIGN_12B_R);
           UINT bytes_read=0;
+          uint32_t j=0;
           while(f_eof(&fil)==0)
           {
         	  if(half_xfer_complete==1 && buff_pointer<SAMPLES_BUFF_SIZE/2)
@@ -175,69 +137,50 @@ int main(void)
         	  else if(xfer_complete==1 && buff_pointer<SAMPLES_BUFF_SIZE && buff_pointer >= SAMPLES_BUFF_SIZE/2)
         	  {
             	  fr=f_read(&fil,temp_buff,SAMPLES_BUFF_SIZE,&bytes_read);
-
-            	  if(fr!=FR_OK)
-            	  {
+            	  if(fr!=FR_OK){
             		  send_message(error_msg,strlen(error_msg));
             	  }
-
-            	  if(bytes_read!=SAMPLES_BUFF_SIZE)
-            	  {
+            	  if(bytes_read!=SAMPLES_BUFF_SIZE){
             		  fill_zeros(temp_buff,(uint16_t)bytes_read,SAMPLES_BUFF_SIZE);
             	  }
-
-            	  for(j=0;j<SAMPLES_BUFF_SIZE/2;j++)
-            	  {
+            	  for(j=0;j<SAMPLES_BUFF_SIZE/2;j++){
             		  samples_buffer[buff_pointer]=getSamplesFromBytes(temp_buff+2*j);
             		  buff_pointer++;
             	  }
 
-            	  if(buff_pointer<=(SAMPLES_BUFF_SIZE-2))
-        			  buff_pointer++;
-        		  else
-        			  buff_pointer=0;
+            	  if(buff_pointer<=(SAMPLES_BUFF_SIZE-2)) buff_pointer++;
+        		  else buff_pointer=0;
 
             	  xfer_complete=0;
         	  }
-        	  else
-        	  {
+        	  else{
         		  continue;
         	  }
-
           }
-
-          if(buff_pointer>=SAMPLES_BUFF_SIZE)
-          {
+          if(buff_pointer>=SAMPLES_BUFF_SIZE){
         	  while(!half_xfer_complete)
         		  j++;
           }
-          else
-          {
+          else{
         	  while(!xfer_complete)
         		  j++;
           }
-
           HAL_DAC_Stop_DMA(&hdac1,DAC_CHANNEL_1);
           f_close(&fil);
-	      Appli_state = FIND;
+	      application_state = FIND;
 	      break;
-
 	    case IDLE:
-	      break;
-
+	    	break;
 	    case SD_UNPLUGGED:
-	      if (isInitialized == 1)
-	      {
+	    	if (isInitialized == 1){
 	        //Error_Handler();
 	        isInitialized = 0;
-	      }
-	      Appli_state = IDLE;
-	      break;
-
+	    	}
+	    	application_state = IDLE;
+	    	break;
 	    default:
-	      break;
+	    	break;
 	    }
-
 	  }
 }
 static void SD_Initialize(void)
@@ -287,16 +230,12 @@ static void FS_FileOperations(void)
   /* Error */
   //Error_Handler();
 }
-FILINFO find_wav_file(DIR* direc)
-{
+FILINFO find_wav_file(DIR* direc){
 	FRESULT fr;
-
 	FILINFO fno;
-
 	fr = f_findnext(direc,&fno);
 	if(fr != FR_OK)
 		Error_Handler();
-
 	return fno;
 }
 

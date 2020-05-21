@@ -25,7 +25,7 @@ void fill_zeros(uint8_t* buffer,uint16_t begin,uint16_t end)
 		buffer[i]=0;
 	}
 }
-void read_frame(uint8_t* header_buff,struct Header* wav_header)
+void read_wav_frame(uint8_t* header_buff,struct Header* wav_header)
 {
 	header_buff+=22;
 	wav_header->channels=*header_buff|(*(header_buff+1)<<8);

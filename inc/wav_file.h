@@ -20,6 +20,6 @@ struct Header {
 
 uint16_t getSamplesFromBytes(uint8_t* bytes);
 void fill_zeros(uint8_t* buffer,uint16_t begin,uint16_t end);
-void read_frame(uint8_t* header_buff,struct Header* wav_header);
+void read_wav_frame(uint8_t* header_buff,struct Header* wav_header);
 
 #endif /* WAV_FILE_H_ */
