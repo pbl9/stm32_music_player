@@ -14,10 +14,6 @@
 
 #define FATFS_MKFS_ALLOWED 0
 
-FATFS SDFatFs;  /* File system object for SD card logical drive */
-FIL MyFile;     /* File object */
-char SDPath[4]; /* SD card logical drive path */
-uint8_t workBuffer[_MAX_SS];
 volatile uint8_t half_xfer_complete=0;
 volatile uint8_t xfer_complete=0;
 
@@ -32,7 +28,7 @@ int main(void)
     uint32_t j=0;
     uint16_t buff_pointer=0;
     char buf[260];
-    struct Header header;
+    struct wavHeader header;
 	HAL_Init();
 	SystemClock_Config();
 	GPIO_Conf();
@@ -43,22 +39,23 @@ int main(void)
 	BSP_LED_Init(LED2);
 
 	application_state_typedef application_state = IDLE;
+	char SDPath[4]; /* SD card logical drive path */
 	if(FATFS_LinkDriver(&SD_Driver, SDPath) == 0){  /* 1- Link the micro SD disk I/O driver */
 		if(BSP_SD_Init() == MSD_OK) /*-2- Init the SD Card*/
 			application_state = INIT;
 		else{
 			send_error(buf,__FILE__,__LINE__,send_message);
 			Error_Handler();
-		  }
-	  }
-	  else{
-		  send_error(buf,__FILE__,__LINE__,send_message);
-		  Error_Handler();
-	  }
-
-	  while (1){
-		  switch(application_state){
-		  case INIT:
+		}
+	}
+	else{
+		send_error(buf,__FILE__,__LINE__,send_message);
+		Error_Handler();
+	}
+	FATFS SDFatFs;  /* File system object for SD card logical drive */
+	while (1){
+		switch(application_state){
+			case INIT:
 	    	if(f_mount(&SDFatFs, (TCHAR const*)SDPath, 0) != FR_OK){
 	    	    send_error(buf,__FILE__,__LINE__,send_message);
 	    	    Error_Handler();
@@ -74,17 +71,17 @@ int main(void)
 	    		application_state=IDLE;
 	    	}
 	    	break;
-		  case FIND:
-			  fr = f_findnext(&dir,&fno);
-			  if(fr==FR_OK && fno.fname[0]){
-				  sprintf(buf,"%s\n" ,fno.fname);
-				  send_message(buf,strlen(buf));
-				  application_state=PLAYING;
-			  }
-			  else{
+			case FIND:
+				fr = f_findnext(&dir,&fno);
+				if(fr==FR_OK && fno.fname[0]){
+					sprintf(buf,"%s\n" ,fno.fname);
+					send_message(buf,strlen(buf));
+					application_state=PLAYING;
+				}
+				else{
 				  send_error(buf,__FILE__,__LINE__,send_message);
 				  application_state=IDLE;
-			  }
+				}
 			  break;
 		  case PLAYING:
 			  if( (fr=f_open(&fil,fno.fname,FA_READ)) != FR_OK){
@@ -147,9 +144,6 @@ int main(void)
 					  else buff_pointer=0;
 
 					  xfer_complete=0;
-				  }
-				  else{
-					  continue;
 				  }
 			  }
 			  if(buff_pointer>=SAMPLES_BUFF_SIZE){
