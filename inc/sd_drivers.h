@@ -26,7 +26,8 @@
 #define   SD_TRANSFER_BUSY              ((uint8_t)0x01)
 #define   SD_TRANSFER_ERROR             ((uint8_t)0x02)
 
-#define SD_DETECT_PIN            GPIO_PIN_5
+#define SD_DETECT_PIN            GPIO_PIN_9
+#define SD_DETECT_PORT           GPIOB
 
 #define SD_DATATIMEOUT           ((uint32_t)100000000)
 
@@ -45,11 +46,7 @@
 #define SD_DMAx_IRQn             DMA2_Channel5_IRQn
 #define SD_DMAx_IRQHandler       DMA2_Channel5_IRQHandler
 
-/* Exported functions --------------------------------------------------------*/
 
-/** @defgroup STM32L496G_DISCOVERY_SD_Exported_Functions Exported Functions
-  * @{
-  */
 uint8_t BSP_SD_Init(void);
 uint8_t BSP_SD_DeInit(void);
 uint8_t BSP_SD_ITConfig(void);

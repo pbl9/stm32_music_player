@@ -257,18 +257,18 @@ static void SD_Detect_MspInit(void)
 {
 	GPIO_InitTypeDef gpio;
 	__HAL_RCC_GPIOA_CLK_ENABLE();
-	gpio.Pin=GPIO_PIN_5;
+	gpio.Pin=SD_DETECT_PIN;
 	gpio.Mode=GPIO_MODE_INPUT;
 	gpio.Pull=GPIO_PULLUP;
 	gpio.Speed=GPIO_SPEED_FREQ_MEDIUM;
 
-	HAL_GPIO_Init(GPIOA,&gpio);
+	HAL_GPIO_Init(SD_DETECT_PORT,&gpio);
 }
 uint8_t BSP_SD_IsDetected(void)
 {
   __IO uint8_t status = SD_PRESENT;
 
-  if(HAL_GPIO_ReadPin(GPIOA,SD_DETECT_PIN)!=GPIO_PIN_RESET)
+  if(HAL_GPIO_ReadPin(SD_DETECT_PORT,SD_DETECT_PIN)!=GPIO_PIN_RESET)
   {
 	  status=SD_NOT_PRESENT;
   }
