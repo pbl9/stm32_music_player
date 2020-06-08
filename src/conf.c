@@ -56,20 +56,16 @@ void SystemClock_Config(void)
 }
 void GPIO_Conf()
 {
-	GPIO_InitTypeDef gpio;
-	//UART Pins
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_USART2_CLK_ENABLE();
-
-	      /**USART2 GPIO Configuration
-	      PA2     ------> USART2_TX
-	      PA3     ------> USART2_RX
-	      */
-	 gpio.Pin = GPIO_PIN_2|GPIO_PIN_3;
-	 gpio.Mode = GPIO_MODE_AF_PP;
-	 gpio.Pull = GPIO_PULLUP;
-	 gpio.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-	 gpio.Alternate = GPIO_AF7_USART2;
+	  /**USART2 GPIO Configuration
+	  PA2     ------> USART2_TX
+	  PA3     ------> USART2_RX*/
+	 GPIO_InitTypeDef gpio={.Pin=GPIO_PIN_2|GPIO_PIN_3,
+	 .Mode=GPIO_MODE_AF_PP,
+	 .Pull=GPIO_PULLUP,
+	 .Speed=GPIO_SPEED_FREQ_VERY_HIGH,
+	 .Alternate=GPIO_AF7_USART2};
 	 HAL_GPIO_Init(GPIOA, &gpio);
 	 //Config pins for dac channels
 	 gpio.Pin=GPIO_PIN_4|GPIO_PIN_5;
@@ -82,8 +78,6 @@ void GPIO_Conf()
 	 gpio.Pull = GPIO_NOPULL;
 	 gpio.Pin = GPIO_PIN_13;
 	 HAL_GPIO_Init(GPIOC, &gpio);
-
-
 }
 void UART_Conf()
 {
@@ -106,39 +100,26 @@ void send_message(char* m,uint16_t size)
 }
 void DAC_Conf()
 {
-	  DAC_ChannelConfTypeDef sConfig;
-	//DMA_HandleTypeDef dac_dma;
 	  __HAL_RCC_DAC1_CLK_ENABLE();
-	//__HAL_RCC_DMA1_CLK_ENABLE();
-
 	  hdac1.Instance = DAC1;
-	  if (HAL_DAC_Init(&hdac1) != HAL_OK)
-	  {
+	  if (HAL_DAC_Init(&hdac1) != HAL_OK){
 	    Error_Handler();
 	  }
-	  /**DAC channel OUT1 config
-	  */
-	  sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-	  sConfig.DAC_Trigger = DAC_TRIGGER_T6_TRGO;
-	  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-	  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
-	  sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
-	  if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
-	  {
+	  /**DAC channel OUT1 config*/
+	  DAC_ChannelConfTypeDef channelConfig={.DAC_SampleAndHold=DAC_SAMPLEANDHOLD_DISABLE,
+	  .DAC_Trigger=DAC_TRIGGER_T6_TRGO,
+	  .DAC_OutputBuffer=DAC_OUTPUTBUFFER_ENABLE,
+	  .DAC_ConnectOnChipPeripheral=DAC_CHIPCONNECT_DISABLE,
+	  .DAC_UserTrimming=DAC_TRIMMING_FACTORY};
+	  if (HAL_DAC_ConfigChannel(&hdac1, &channelConfig, DAC_CHANNEL_1) != HAL_OK){
 	    Error_Handler();
 	  }
-
-
 }
 void HAL_DAC_MspInit(DAC_HandleTypeDef* dacHandle)
 {
-
   if(dacHandle->Instance==DAC1)
   {
     /* DAC1 clock enable */
-    //__HAL_RCC_DAC1_CLK_ENABLE();
-
-
     /* DAC1 DMA Init */
     /* DAC_CH1 Init */
     hdma_dac_ch1.Instance = DMA1_Channel3;
@@ -150,32 +131,19 @@ void HAL_DAC_MspInit(DAC_HandleTypeDef* dacHandle)
     hdma_dac_ch1.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
     hdma_dac_ch1.Init.Mode = DMA_CIRCULAR;
     hdma_dac_ch1.Init.Priority = DMA_PRIORITY_MEDIUM;
-    if (HAL_DMA_Init(&hdma_dac_ch1) != HAL_OK)
-    {
+    if (HAL_DMA_Init(&hdma_dac_ch1) != HAL_OK){
       Error_Handler();
     }
-
     __HAL_LINKDMA(dacHandle,DMA_Handle1,hdma_dac_ch1);
-
-  /* USER CODE BEGIN DAC1_MspInit 1 */
-
-  /* USER CODE END DAC1_MspInit 1 */
   }
 }
-void DMA_Init(void)
-{
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Channel3_IRQn interrupt configuration */
+void DMA_Init(void){
+  __HAL_RCC_DMA1_CLK_ENABLE(); /* DMA controller clock enable */
   HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
 
 }
-void Sample_Clock_Init()
-{
-	TIM_MasterConfigTypeDef sMasterConfig;
+void Sample_Clock_Init(){
 	__HAL_RCC_TIM6_CLK_ENABLE();
 	tim.Instance=TIM6;
 	tim.Init.CounterMode=TIM_COUNTERMODE_UP;
@@ -186,12 +154,7 @@ void Sample_Clock_Init()
 	tim.Init.RepetitionCounter=0;
 	HAL_TIM_Base_Init(&tim);
 
-	sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
-	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-	//HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_3);
-	//HAL_NVIC_SetPriority(TIM3_IRQn,3,0);
-	//HAL_NVIC_EnableIRQ(TIM3_IRQn);
+	TIM_MasterConfigTypeDef sMasterConfig={.MasterOutputTrigger=TIM_TRGO_UPDATE,
+	.MasterSlaveMode=TIM_MASTERSLAVEMODE_DISABLE};
 	HAL_TIMEx_MasterConfigSynchronization(&tim, &sMasterConfig);
-	//HAL_TIM_Base_Start_IT(&tim);
-
 }

@@ -9,15 +9,15 @@
 
 uint16_t getSamplesFromBytes(uint8_t* bytes)
 {
-	int16_t sample_from_bytes=0;
-	uint16_t sample_for_dac=0;
-	int32_t temp_sample=0;
-	sample_from_bytes=(bytes[1]<<8)|bytes[0];
-	temp_sample=(int32_t)(sample_from_bytes+32768);
-	sample_for_dac=(uint16_t)(temp_sample>>4);
+	int16_t sample_from_bytes=(bytes[1]<<8)|bytes[0];
+	int32_t temp_sample=(int32_t)(sample_from_bytes+32768);
+	uint16_t sample_for_dac=(uint16_t)(temp_sample>>4);//shift to 12 bits
+	//sample_from_bytes=(bytes[1]<<8)|bytes[0];
+	//temp_sample=(int32_t)(sample_from_bytes+32768);
+	//sample_for_dac=(uint16_t)(temp_sample>>4);
 	return sample_for_dac;
 }
-void read_wav_frame(uint8_t* header_buff,struct wavHeader* wav_header)
+void wav_read_header(uint8_t* header_buff,struct wavHeader* wav_header)
 {
 	header_buff+=22;
 	wav_header->channels=*header_buff|(*(header_buff+1)<<8);
@@ -30,4 +30,9 @@ void read_wav_frame(uint8_t* header_buff,struct wavHeader* wav_header)
 	wav_header->bits_per_sample=header_buff[0]|(header_buff[1]<<8);
 	header_buff+=6;
 	wav_header->data_size=header_buff[0]|(header_buff[1]<<8)|(header_buff[2]<<16)|(header_buff[3]<<24);
+}
+void wav_write_about(char* buffer,struct wavHeader wav_header){
+	sprintf(buffer,"About file:\n\rchannels:%d\n\rsample rate:%d\n\rbits per sample:%d\n\rdata size:%d\n\r",
+			(int)wav_header.channels,(int)wav_header.sample_rate,(int)wav_header.bits_per_sample,
+			(int)wav_header.data_size);
 }

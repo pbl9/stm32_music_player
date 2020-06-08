@@ -11,6 +11,7 @@
 #include "stm32l4xx_nucleo.h"
 #include "main.h"
 #include "util.h"
+#include "file_operations.h"
 
 #define FATFS_MKFS_ALLOWED 0
 
@@ -47,12 +48,12 @@ int main(void)
 			send_error(buf,__FILE__,__LINE__,send_message);
 			Error_Handler();
 		}
-	}
-	else{
+	}else{
 		send_error(buf,__FILE__,__LINE__,send_message);
 		Error_Handler();
 	}
 	FATFS SDFatFs;  /* File system object for SD card logical drive */
+    FILINFO fno;
 	while (1){
 		switch(application_state){
 			case INIT:
@@ -84,20 +85,18 @@ int main(void)
 				}
 			  break;
 		  case PLAYING:
-			  if( (fr=f_open(&fil,fno.fname,FA_READ)) != FR_OK){
+			  /*open the file*/
+			  if( f_open(&fil,fno.fname,FA_READ) != FR_OK){
 				  send_error(buf,__FILE__,__LINE__,send_message);
 				  Error_Handler();
 			  }
-			  if( (fr=f_read(&fil,temp_buff,44,NULL))!= FR_OK ){
-				  send_error(buf,__FILE__,__LINE__,send_message);
-				  Error_Handler();
-			  }
-			  read_wav_frame(temp_buff,&header);
-			  sprintf(buf,"Data about file:\n\rchannels:%d\n\rsample rate:%d\n\rbits_per_sample:%d\n\rdata size:%d\n\r" ,(int)header.channels,(int)header.sample_rate,(int)header.bits_per_sample,(int)header.data_size);
+			  /*read header bytes*/
+			  file_read_from(&fil,temp_buff,44,NULL);
+			  wav_read_header(temp_buff,&header);
+			  wav_write_about(buf,header);
 			  send_message(buf,strlen(buf));
-
-			  fr=f_lseek(&fil,44);
-			  fr=f_read(&fil,temp_buff,2*SAMPLES_BUFF_SIZE,NULL);
+			  fr=f_lseek(&fil,44);//omitt the header
+			  file_read_from(&fil,temp_buff,2*SAMPLES_BUFF_SIZE,NULL);
 			  for(j=0;j<SAMPLES_BUFF_SIZE;j++){
 				  samples_buffer[j]=getSamplesFromBytes(temp_buff+2*j);
 			  }
@@ -105,44 +104,31 @@ int main(void)
 			  extern TIM_HandleTypeDef tim;
 			  HAL_TIM_Base_Start(&tim);
 			  extern DAC_HandleTypeDef hdac1;
-			  HAL_DAC_Start_DMA(&hdac1,DAC_CHANNEL_1,(uint32_t*)samples_buffer,SAMPLES_BUFF_SIZE,DAC_ALIGN_12B_R);
+			  HAL_DAC_Start_DMA(&hdac1,DAC_CHANNEL_1,(uint32_t*)samples_buffer,
+					  SAMPLES_BUFF_SIZE,DAC_ALIGN_12B_R);
 			  UINT bytes_read=0;
 			  uint32_t j=0;
-			  while(f_eof(&fil)==0)
-			  {
+			  while(f_eof(&fil)==0){
+				  //if half dma complete, take half buffer samples
 				  if(half_xfer_complete==1 && buff_pointer<SAMPLES_BUFF_SIZE/2){
-					  BSP_LED_On(LED2);
-					  fr=f_read(&fil,temp_buff,SAMPLES_BUFF_SIZE,&bytes_read);
-					  if(bytes_read!=SAMPLES_BUFF_SIZE){
+					  file_read_from(&fil,temp_buff,SAMPLES_BUFF_SIZE,&bytes_read);
+					  if(bytes_read!=SAMPLES_BUFF_SIZE){/*in case of end of file*/
 						  fill_zeros(temp_buff,(uint16_t)bytes_read,SAMPLES_BUFF_SIZE);
 					  }
-					  if(fr!=FR_OK){
-						  send_error(buf,__FILE__,__LINE__,send_message);
-						  Error_Handler();
-					  }
 					  for(j=0;j<SAMPLES_BUFF_SIZE/2;j++){
-						  samples_buffer[buff_pointer]=getSamplesFromBytes(temp_buff+2*j);
-						  buff_pointer++;
+						  samples_buffer[buff_pointer++]=getSamplesFromBytes(temp_buff+2*j);
 					  }
 					  half_xfer_complete=0;
-				  }
-				  else if(xfer_complete==1 && buff_pointer<SAMPLES_BUFF_SIZE &&
+				  }else if(xfer_complete==1 && buff_pointer<SAMPLES_BUFF_SIZE &&
 						  buff_pointer >= SAMPLES_BUFF_SIZE/2){
-					  fr=f_read(&fil,temp_buff,SAMPLES_BUFF_SIZE,&bytes_read);
-					  if(fr!=FR_OK){
-						  send_error(buf,__FILE__,__LINE__,send_message);
-						  Error_Handler();
-					  }
+					  file_read_from(&fil,temp_buff,SAMPLES_BUFF_SIZE,&bytes_read);
 					  if(bytes_read!=SAMPLES_BUFF_SIZE){
 						  fill_zeros(temp_buff,(uint16_t)bytes_read,SAMPLES_BUFF_SIZE);
 					  }
 					  for(j=0;j<SAMPLES_BUFF_SIZE/2;j++){
-						  samples_buffer[buff_pointer]=getSamplesFromBytes(temp_buff+2*j);
-						  buff_pointer++;
+						  samples_buffer[buff_pointer++]=getSamplesFromBytes(temp_buff+2*j);
 					  }
-					  if(buff_pointer<=(SAMPLES_BUFF_SIZE-2)) buff_pointer++;
-					  else buff_pointer=0;
-
+					  buff_pointer=(buff_pointer<=(SAMPLES_BUFF_SIZE-2)) ? buff_pointer+1 : 0;
 					  xfer_complete=0;
 				  }
 			  }
@@ -153,14 +139,10 @@ int main(void)
 				  while(!xfer_complete) j++;
 			  }
 			  HAL_DAC_Stop_DMA(&hdac1,DAC_CHANNEL_1);
-			  BSP_LED_Off(LED2);
 			  f_close(&fil);
 			  application_state = FIND;
 			  break;
 		  case IDLE:
-			  break;
-		  case SD_UNPLUGGED:
-			  application_state = IDLE;
 			  break;
 		  default:
 			  break;

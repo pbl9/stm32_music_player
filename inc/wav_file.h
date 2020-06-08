@@ -9,6 +9,7 @@
 #define WAV_FILE_H_
 
 #include "stm32l4xx_hal.h"
+#include "stdio.h"
 
 struct wavHeader {
 	uint16_t channels;
@@ -19,6 +20,7 @@ struct wavHeader {
 };
 
 uint16_t getSamplesFromBytes(uint8_t* bytes);
-void read_wav_frame(uint8_t* header_buff,struct wavHeader* wav_header);
+void wav_read_header(uint8_t* header_buff,struct wavHeader* wav_header);
+void wav_write_about(char* buffer,struct wavHeader wav_header);
 
 #endif /* WAV_FILE_H_ */

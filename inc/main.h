@@ -24,7 +24,6 @@ typedef enum {
   INIT,
   FIND,
   PLAYING,
-  SD_UNPLUGGED,
 }application_state_typedef;
 
 #endif /* MAIN_H_ */
