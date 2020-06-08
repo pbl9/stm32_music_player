@@ -22,5 +22,6 @@ struct wavHeader {
 uint16_t getSamplesFromBytes(uint8_t* bytes);
 void wav_read_header(uint8_t* header_buff,struct wavHeader* wav_header);
 void wav_write_about(char* buffer,struct wavHeader wav_header);
+void wav_samples_from_bytes(uint8_t* bytes,uint16_t* samples,uint32_t number_of_samples);
 
 #endif /* WAV_FILE_H_ */

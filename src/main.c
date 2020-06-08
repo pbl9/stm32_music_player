@@ -26,8 +26,6 @@ int main(void)
     FIL fil;
     uint16_t samples_buffer[SAMPLES_BUFF_SIZE];
     uint8_t temp_buff[2*SAMPLES_BUFF_SIZE]={0};
-    uint32_t j=0;
-    uint16_t buff_pointer=0;
     char buf[260];
     struct wavHeader header;
 	HAL_Init();
@@ -53,7 +51,6 @@ int main(void)
 		Error_Handler();
 	}
 	FATFS SDFatFs;  /* File system object for SD card logical drive */
-    FILINFO fno;
 	while (1){
 		switch(application_state){
 			case INIT:
@@ -97,47 +94,34 @@ int main(void)
 			  send_message(buf,strlen(buf));
 			  fr=f_lseek(&fil,44);//omitt the header
 			  file_read_from(&fil,temp_buff,2*SAMPLES_BUFF_SIZE,NULL);
-			  for(j=0;j<SAMPLES_BUFF_SIZE;j++){
-				  samples_buffer[j]=getSamplesFromBytes(temp_buff+2*j);
-			  }
-			  buff_pointer=0;
+			  wav_samples_from_bytes(temp_buff,samples_buffer,SAMPLES_BUFF_SIZE);
 			  extern TIM_HandleTypeDef tim;
 			  HAL_TIM_Base_Start(&tim);
 			  extern DAC_HandleTypeDef hdac1;
 			  HAL_DAC_Start_DMA(&hdac1,DAC_CHANNEL_1,(uint32_t*)samples_buffer,
 					  SAMPLES_BUFF_SIZE,DAC_ALIGN_12B_R);
 			  UINT bytes_read=0;
-			  uint32_t j=0;
 			  while(f_eof(&fil)==0){
 				  //if half dma complete, take half buffer samples
-				  if(half_xfer_complete==1 && buff_pointer<SAMPLES_BUFF_SIZE/2){
+				  if(half_xfer_complete==1 && xfer_complete==0){
 					  file_read_from(&fil,temp_buff,SAMPLES_BUFF_SIZE,&bytes_read);
 					  if(bytes_read!=SAMPLES_BUFF_SIZE){/*in case of end of file*/
 						  fill_zeros(temp_buff,(uint16_t)bytes_read,SAMPLES_BUFF_SIZE);
 					  }
-					  for(j=0;j<SAMPLES_BUFF_SIZE/2;j++){
-						  samples_buffer[buff_pointer++]=getSamplesFromBytes(temp_buff+2*j);
-					  }
+					  wav_samples_from_bytes(temp_buff,samples_buffer,SAMPLES_BUFF_SIZE/2);
 					  half_xfer_complete=0;
-				  }else if(xfer_complete==1 && buff_pointer<SAMPLES_BUFF_SIZE &&
-						  buff_pointer >= SAMPLES_BUFF_SIZE/2){
+				  }else if(xfer_complete==1 && half_xfer_complete==0){
 					  file_read_from(&fil,temp_buff,SAMPLES_BUFF_SIZE,&bytes_read);
-					  if(bytes_read!=SAMPLES_BUFF_SIZE){
-						  fill_zeros(temp_buff,(uint16_t)bytes_read,SAMPLES_BUFF_SIZE);
-					  }
-					  for(j=0;j<SAMPLES_BUFF_SIZE/2;j++){
-						  samples_buffer[buff_pointer++]=getSamplesFromBytes(temp_buff+2*j);
-					  }
-					  buff_pointer=(buff_pointer<=(SAMPLES_BUFF_SIZE-2)) ? buff_pointer+1 : 0;
+					  fill_zeros(temp_buff,(uint16_t)bytes_read,SAMPLES_BUFF_SIZE);
+					  wav_samples_from_bytes(temp_buff,samples_buffer+SAMPLES_BUFF_SIZE/2,
+							  SAMPLES_BUFF_SIZE/2);
 					  xfer_complete=0;
 				  }
 			  }
-			  if(buff_pointer>=SAMPLES_BUFF_SIZE){
-				  while(!half_xfer_complete) j++;
+			  while(half_xfer_complete==0 && xfer_complete==0){//all bytes read from file, waiting for dma end
+				  continue;
 			  }
-			  else{
-				  while(!xfer_complete) j++;
-			  }
+			  half_xfer_complete=0; xfer_complete=0;
 			  HAL_DAC_Stop_DMA(&hdac1,DAC_CHANNEL_1);
 			  f_close(&fil);
 			  application_state = FIND;
