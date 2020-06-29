@@ -26,7 +26,7 @@ int main(void)
     FIL fil;
     uint16_t samples_buffer[SAMPLES_BUFF_SIZE];
     uint8_t temp_buff[2*SAMPLES_BUFF_SIZE]={0};
-    char buf[260];
+    char buf[300];
     struct wavHeader header;
 	HAL_Init();
 	SystemClock_Config();
@@ -38,6 +38,8 @@ int main(void)
 	BSP_LED_Init(LED2);
 
 	application_state_typedef application_state = IDLE;
+	//HAL_NVIC_SetPriority(TIM3_IRQn,0,0);
+	//NVIC_EncodePriority(0,1,2);
 	char SDPath[4]; /* SD card logical drive path */
 	if(FATFS_LinkDriver(&SD_Driver, SDPath) == 0){  /* 1- Link the micro SD disk I/O driver */
 		if(BSP_SD_Init() == MSD_OK) /*-2- Init the SD Card*/
